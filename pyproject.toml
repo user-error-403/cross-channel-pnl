@@ -1,0 +1,17 @@
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E4",   # imports (one per line, top of file)
+    "E7",   # statements (no 1-line if/try, no bare except, no `l`/`I` names)
+    "E9",   # syntax errors (unparseable files)
+    "F",    # pyflakes (unused imports/vars, undefined names)
+    "W505", # docstring/comment line too long (max-doc-length)
+]
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 120 
+
+[tool.ruff.format]
+docstring-code-format = true

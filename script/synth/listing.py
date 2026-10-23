@@ -56,24 +56,8 @@ def _format(value: str) -> str:
 
 
 def _sku_fields(product: Product, brand: Brand, category: Category) -> dict[str, str]:
-    """
-    Transform a product into the SKU field mapping used by channel templates.
+    """Transform a product into the SKU field mapping used by channel templates."""
 
-    Contract:
-    - Domain Bounds: item is one of CATEGORIES_LIST[category.name]["items"].
-    - Transformation: product.name splits as brand, modifier, item, and trailing code; brand, category, and item normalize through _format.
-
-    Expectations:
-    - Determinism: The same product, brand, and category produce identical fields.
-    - Non-Mutation: product, brand, and category are never modified.
-
-    Outputs:
-    - Shape: A mapping with exactly brand, category, item, and code.
-
-    Failures:
-    - Crash: category.name is absent from CATEGORIES_LIST.
-    - Crash: No category item matches product.name.
-    """
     category_items = CATEGORIES_LIST[category.name]["items"]
 
     item = next((itm for itm in category_items if itm in product.name), None)
@@ -95,22 +79,7 @@ def _render_seller_sku(
     """
     Transform SKU fields into a channel-formatted, drifted seller SKU.
 
-    Contract:
-    - Nullability: seller_sku is None when the null draw falls below cfg.sku_null_rate.
-    - Domain Bounds: A non-null SKU renders from the channel sku_template and is at most sku_max_len characters.
-    - Transformation: Separator swap, channel prefix, casing, and adjacent-character typo drift apply independently before truncation.
-    - Type Integrity: The result is str or None.
-
-    Expectations:
-    - Determinism: The same fields, cfg, and rng state produce the same seller_sku.
-    - Non-Mutation: fields and cfg are never modified.
-
-    Outputs:
-    - Shape: A string within the channel sku_max_len, with no trailing separator, or None.
-
-    Failures:
-    - Crash: channel is absent from CHANNEL_PROFILES.
-    - Crash: A sku_template placeholder is absent from fields.
+    - Nullability: Returns `None` on one draw below `cfg.sku_null_rate`.
     """
 
     if rng.random() < cfg.sku_null_rate:
@@ -154,22 +123,6 @@ def _channel_price(
 ) -> Decimal:
     """
     Transform a USD base price into a channel-currency repriced amount.
-
-    Contract:
-    - Transformation: base_price divides by fx_rates[channel_currency[channel]], then multiplies by channel_price_multiplier[channel] and an integer-basis-point fluctuation in [-200, 200].
-    - Type Integrity: The result is a Decimal quantized to two decimal places.
-    - Domain Bounds: base_price, fx_rate, and multiplier are positive; this function does not validate them.
-    - Nullability: The result is never None.
-
-    Expectations:
-    - Determinism: The same base_price, channel, cfg, and rng state produce the same Decimal.
-    - Non-Mutation: base_price and cfg are never modified.
-
-    Outputs:
-    - Shape: A Decimal with exponent -2.
-
-    Failures:
-    - Crash: channel is absent from channel_currency, fx_rates, or channel_price_multiplier.
     """
     currency = cfg.channel_currency[channel]
     fx_rate = Decimal(str(cfg.fx_rates[currency]))  # USD per 1 unit of foreign currency
@@ -196,22 +149,6 @@ def _channel_title(
 ) -> str:
     """
     Transform a product into a channel-specific product title.
-
-    Contract:
-    - Domain Bounds: The result length never exceeds the channel title_max_len.
-    - Transformation: amazon appends sampled keywords and two category modifiers; ebay optionally prefixes NEW and uppercases; woocommerce returns product.name.
-    - Nullability: The result is never None.
-
-    Expectations:
-    - Determinism: The same product, channel, and rng state produce the same title.
-    - Non-Mutation: product and category are never modified.
-
-    Outputs:
-    - Shape: A string truncated at a word boundary.
-
-    Failures:
-    - Crash: channel is absent from CHANNEL_PROFILES.
-    - Crash: category is absent from CATEGORIES_LIST.
     """
     ch_profile = CHANNEL_PROFILES[channel]
     ch_mods = CATEGORIES_LIST[category]["modifiers"]
@@ -242,26 +179,13 @@ def generate_listings(
     cfg: Config, catalog: Catalog, rng: random.Random
 ) -> list[Listing]:
     """
-    Coordinate listing generation across every product and channel.
+    Generate one listing per product and configured channel.
 
-    Workflow:
-    1. Initialize: Create the listing accumulator, the marketplace-id uniqueness set, and the sequence counter.
-    2. Hydrate: Resolve the brand and category for each product.
-    3. Transform: Resolve SKU fields per product; per channel, delegate to the marketplace-id helpers, _render_seller_sku, _channel_title, and _channel_price.
-    4. Validate: Enforce marketplace_id uniqueness across all listings before append.
-
-    Expectations:
-    - Determinism: The same cfg and catalog produce identical Listing rows in identical order.
-    - Non-Mutation: catalog is never modified.
-    - Grain: Exactly one Listing per product_id and channel.
-    - Lineage: Every Listing carries product_id as the ground-truth link to the catalog product.
-
-    Outputs:
-    - Shape: A list of Listing models ordered by catalog product order, then configured channel order.
-
-    Failures:
-    - Crash: A marketplace_id repeats across listings.
-    - Crash: A product has no matching category item.
+    - Grain: Exactly one `Listing` per `product_id` and `channel`.
+    - Uniqueness: `marketplace_id` is unique across the returned list.
+    - Referential Integrity: Every `product_id` resolves to a `Catalog.product`.
+    - Determinism: Rows are keyed by `f"{cfg.seed}:listing:{p_idx}:{channel}"`, so
+      adding a channel does not disturb existing listings.
     """
 
     seen_marketplace_ids: set[str] = set()

@@ -8,24 +8,20 @@ class Config(BaseModel):
     """
     Define the configuration contract for every synthetic-data generator.
 
-    Contract:
-    - Schema: Every field carries a default, so Config() validates with no arguments.
-    - Domain Bounds: Drift rates belong in [0, 1] and per_day_orders_range requires low <= high; the model enforces neither bound.
-    - Type Integrity: Pydantic enforces the declared type of every field at construction.
-    - Nullability: No field accepts None.
-    - Referential Integrity: Every channel in store_channels is assumed present in channel_currency and channel_price_multiplier, and every currency in channel_currency is assumed present in fx_rates; construction validates none of these references.
-    - Temporal Alignment: start_date and end_date are inclusive dates; days returns the inclusive day count.
-    - Transformation: fx_rates holds the USD value of one unit of each currency, so a USD base price divides by the rate to yield the local amount; channel_price_multiplier applies after that division; default_currency is not consulted by the price path.
-    - Lineage: Category vocabulary originates in reference.CATEGORIES_LIST; channel SKU templates, length limits, and title styles originate in reference.CHANNEL_PROFILES.
+    `default_currency` and `per_day_orders_range` are declared but never read.
 
-    Expectations:
-    - Determinism: seed fixes the stage and per-entity RNGs; identical field values reproduce identical generator output.
-    - Non-Mutation: Generators read Config and never modify it; the Pydantic model itself remains mutable.
+    Contract:
+    - Transformation: `fx_rates` holds the USD value of one unit of each foreign currency; the price path divides the USD base by that rate, then applies `channel_price_multiplier`.
+    - Referential Integrity: Every `store_channels` entry must key into `channel_currency` and `channel_price_multiplier`, and every `channel_currency` value must key into `fx_rates`.
+      Construction validates none of these references.
+    - Data Constraint: Drift rates are probabilities in [0, 1].
+      `drift_titlecase_rate` is an absolute threshold applied after
+      `drift_lowercase_rate`, so its marginal share is the difference.
+      Construction validates neither bound.
+    - Temporal Alignment: `start_date` and `end_date` bound an inclusive window;`days` counts both ends.
 
     Failures:
-    - Crash: Pydantic raises ValidationError when a field violates its declared type.
-    - Crash: Listing generation raises KeyError when store_channels or channel_currency references a missing channel or currency key.
-    - Finding: Drift rates outside [0, 1] pass construction and saturate the corresponding drift.
+    - Crash: `KeyError` during listing generation when a `store_channels` entry is missing from `channel_currency` or `channel_price_multiplier`.
     """
 
     seed: int = 42

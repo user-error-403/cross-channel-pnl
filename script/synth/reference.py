@@ -1,3 +1,15 @@
+"""Static reference data consumed by every synthetic-data generator.
+
+- Key Coupling: Every `CHANNEL_PROFILES` key mirrors a `Config.store_channels`
+  entry and is also keyed in `Config.channel_currency` and
+  `Config.channel_price_multiplier`.
+- Mandatory Schema: Each `CHANNEL_PROFILES` entry supplies `sku_template`,
+  `sku_max_len`, `marketplace_id_kind`, `title_style`, and `title_max_len`.
+- Text Coupling: Every `CATEGORIES_LIST` item string appears verbatim inside the
+  generated `Product.name`, because `listing._sku_fields` recovers the item by
+  substring match.
+"""
+
 CHANNEL_PROFILES: dict[str, dict] = {
     "amazon": {
         "sku_template": "{brand}-{item}-{code}",

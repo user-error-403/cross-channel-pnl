@@ -15,7 +15,8 @@ class SimClock:
     """
     Immutable simulated calendar window with a current day.
 
-    Both ends are inclusive.
+    - Window Bounds: `start` and `end` are both inclusive, and `current` never
+      leaves that range.
     """
 
     start: date
@@ -53,9 +54,7 @@ class SimClock:
 
     def advance(self, days: int = 1) -> SimClock:
         """
-        Return a new clock moved forward by `days`, refusing to pass `end`.
-
-        Two conditions raise `ValueError` rather than clamping: `days` below 1, and a step that would leave `current` later than `end`.
+        Return a new clock advanced by `days`, never past `end`.
         """
         if days < 1:
             raise ValueError(f"days must be >= 1, got {days}")
@@ -73,7 +72,8 @@ class SimClock:
         """
         Yield every date in the window from `start` to `end`, both inclusive.
 
-        Iteration always covers the full window: `current` is never consulted, so a partially advanced clock yields the same dates.
+        - Determinism: A partially advanced clock yields the same dates as a
+          fresh one, so iteration covers the full window.
         """
         day = self.start
         while day <= self.end:
@@ -83,7 +83,7 @@ class SimClock:
 
 def load_as_of(path: Path, default: date) -> date:
     """
-    Read the persisted current day, falling back to `default`.
+    Read the persisted current day, falling back to `default` on any read or parse error.
 
     Args:
         path: File holding one ISO 8601 date, with optional surrounding whitespace.
@@ -91,9 +91,6 @@ def load_as_of(path: Path, default: date) -> date:
 
     Returns:
         The persisted date, or `default`.
-
-    Behavior:
-    - Fallback: Every `OSError` and `ValueError` is downgraded to `default`; the function never raises.
     """
     try:
         raw = Path(path).read_text(encoding="utf-8").strip()
@@ -111,7 +108,8 @@ def save_as_of(path: Path, value: date) -> None:
         value: Date written as `value.isoformat()` plus a trailing newline.
 
     Behavior:
-    - Atomicity: Bytes go to a sibling temp file, are fsynced, then moved onto `path` by `os.replace`, so readers never observe a partial file.
+    - Atomicity: Readers never observe a partial file, and the temp file is
+      removed when the write fails.
     """
     path = Path(path)
 

@@ -29,10 +29,6 @@ class Product(BaseModel):
 
 @dataclass
 class Catalog:
-    """
-    Plain container for the generated reference data.
-    """
-
     brands: list[Brand]
     categories: list[Category]
     products: list[Product]
@@ -44,7 +40,14 @@ def _make_id(prefix: str, i: int) -> str:
 
 def generate_catalog(cfg: Config, rng: random.Random) -> Catalog:
     """
-    Generate brands, categories and products for the simulated catalog.
+    Build the synthetic catalog of priced products from `cfg` and the reference lists.
+
+    - Referential Integrity: Every `brand_id` and `category_id` in `products`
+      resolves inside the returned `brands` and `categories`.
+    - Determinism: Products are keyed by `f"{cfg.seed}:product:{idx}"`, so
+      changing `n_products` leaves existing products untouched.
+    - Uniqueness: `Brand.id`, `Category.id`, and `Product.id` are unique within
+      the returned `Catalog`.
     """
     brands = [
         Brand(id=_make_id("br", i), name=name)
