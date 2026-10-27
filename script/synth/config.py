@@ -6,23 +6,19 @@ from pydantic import BaseModel, Field
 
 class Config(BaseModel):
     """
-    Define the configuration contract for every synthetic-data generator.
+    Declare the run settings shared by every synthetic-data generator.
 
-    `default_currency` and `per_day_orders_range` are declared but never read.
-
-    Contract:
-    - Transformation: `fx_rates` holds the USD value of one unit of each foreign currency; the price path divides the USD base by that rate, then applies `channel_price_multiplier`.
-    - Referential Integrity: Every `store_channels` entry must key into `channel_currency` and `channel_price_multiplier`, and every `channel_currency` value must key into `fx_rates`.
-      Construction validates none of these references.
-    - Data Constraint: Drift rates are probabilities in [0, 1].
-      `drift_titlecase_rate` is an absolute threshold applied after
-      `drift_lowercase_rate`, so its marginal share is the difference.
-      Construction validates neither bound.
-    - Temporal Alignment: `start_date` and `end_date` bound an inclusive window;`days` counts both ends.
-
-    Failures:
-    - Crash: `KeyError` during listing generation when a `store_channels` entry is missing from `channel_currency` or `channel_price_multiplier`.
+    - FX Direction: `fx_rates` holds USD per one unit of foreign currency, so a
+      USD base price divides by the rate.
+    - Date Window: `start_date` and `end_date` are both inclusive, so the span
+      is the difference plus one.
+    - Threshold Coupling: `drift_lowercase_rate` and `drift_titlecase_rate` are
+      cumulative cut-offs on one draw, not independent probabilities.
+    - Key Coupling: Every `store_channels` entry is keyed in `channel_currency`
+      and `channel_price_multiplier`.
     """
+
+    # TODO: Update docstring to inlcude orders configs
 
     seed: int = 42
 
@@ -37,6 +33,27 @@ class Config(BaseModel):
     n_products: int = 315
     n_brands: int = 23
     per_day_orders_range: tuple[int, int] = (50, 250)
+
+    # Order stream
+    channel_order_share: dict[str, float] = Field(
+        default_factory=lambda: {"amazon": 0.55, "ebay": 0.25, "woocommerce": 0.20}
+    )
+    items_per_order_range: tuple[int, int] = (1, 4)
+    units_per_line_range: tuple[int, int] = (1, 3)
+    order_status_weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "pending": 0.05,
+            "shipped": 0.15,
+            "delivered": 0.75,
+            "cancelled": 0.05,
+        }
+    )
+    popularity_alpha: float = 2.5
+    line_discount_rate: float = 0.20
+    line_discount_pct_range: tuple[float, float] = (0.05, 0.15)
+    orphan_line_rate: float = 0.01
+    soft_delete_order_rate: float = 0.005
+    currency_defect_rate: float = 0.01
 
     # USD per 1 unit of foreign currency
     default_currency: str = "USD"
