@@ -1,6 +1,7 @@
 import random
 from datetime import date, datetime, time, timezone
 from decimal import Decimal, ROUND_HALF_UP
+from faker import Faker
 
 from .catalog import Catalog
 from .clock import SimClock
@@ -48,13 +49,19 @@ def _channel_order_id(channel: str, day: date, seq: int) -> str:
     return f"{ordinal_day}{seq:04d}"
 
 
+# ------------------------------------------------------------
+# DETERMINISTIC SPLITS
+# ------------------------------------------------------------
+
+
 def _popularity_weight(cfg: Config, listing: Listing) -> float:
-    # Deterministic fake popularity per product (superstars, mid-tier, dead products)
+    """Fake popularity per product (superstars, mid-tier, dead products)"""
     rng = random.Random(f"{cfg.seed}:popularity:{listing.listing_id}")
     return max(rng.random(), 1e-9) ** cfg.popularity_alpha
 
 
 def _daily_order_count(cfg: Config, day_rng: random.Random, day: date) -> int:
+    """Daily orders total from the configured range, scaled by seasonality."""
     low, high = cfg.per_day_orders_range
     base = day_rng.randint(low, high)
     multiplier = _SEASONALITY_BY_WEEKDAY[day.weekday()] * _HOLIDAY_MULTIPLIER.get(
@@ -64,24 +71,65 @@ def _daily_order_count(cfg: Config, day_rng: random.Random, day: date) -> int:
 
 
 def _split_by_channel(cfg: Config, total: int) -> dict[str, int]:
-    # fixed order and normalize channel weight
+    """Split `total` orders across the configured channels by channel order share."""
+    # Sorted for deterministic ties
     channels = sorted(cfg.store_channels)
-    weight_sum = sum(cfg.channel_order_share[ch] for ch in channels)
+    share_total = sum(cfg.channel_order_share[ch] for ch in channels)
 
-    exact = {ch: total * cfg.channel_order_share[ch] / weight_sum for ch in channels}
-    counts = {ch: int(exact[ch]) for ch in channels}
-    leftover = total - sum(counts.values())
+    frac_count = {
+        ch: total * cfg.channel_order_share[ch] / share_total for ch in channels
+    }
+    base_count = {ch: int(frac_count[ch]) for ch in channels}
+    leftover = total - sum(base_count.values())
 
-    # TODO: add short inline explanation of the algo
-    ranked = sorted(channels, key=lambda ch: (-(exact[ch] - counts[ch]), ch))
+    # Rank by largest remainder while keeping text ascending
+    #   remainder: amazon 0.5 woocommerc 0.1 ebay 0.4
+    #   negated:   amazon -0.5 woocommerce -0.1 ebay -0.4
+    #   ranked:    ['amazon', 'ebay', 'woocomerce']
+    remainder = {ch: frac_count[ch] - base_count[ch] for ch in channels}
+    ranked = sorted(channels, key=lambda ch: (-remainder[ch], ch))
 
     for ch in ranked[:leftover]:
-        counts[ch] += 1
+        base_count[ch] += 1
 
-    return counts
+    return base_count
 
 
-# TODO: Deteministic sampling w/out replacement
-# TODO: Timestamp and buyer metadata
-# TODO: Day orders generator
-# TODO: Generate whole date range orders
+def _sample_listings(
+    rng: random.Random,
+    listing_pool: list[Listing],
+    popularity_weights: list[float],
+    n_listings: int,
+) -> list[Listing]:
+    """Select up to `n_listings` distinct listings to show, weighted by popularity"""
+    items = list(zip(listing_pool, popularity_weights))
+    picked: list[Listing] = []
+
+    for _ in range(min(n_listings, len(items))):
+        # Extract 'items' index. Biased to larger weights
+        # Pop/remove the chosen listing from the pool so it can't be picked again
+        idx = rng.choices(range(len(items)), weights=[w for _, w in items])[0]
+        listing, _ = items.pop(idx)
+        picked.append(listing)
+
+    return picked
+
+
+# ------------------------------------------------------------
+# TRANSACTION METADATA
+# ------------------------------------------------------------
+
+
+def _placed_at(rng: random.Random, day: date) -> datetime:
+    seconds = rng.randint(0, 86_399)
+    _time = time(seconds // 3600, seconds % 3600 // 60, seconds % 60)
+    return datetime.combine(day, _time, tzinfo=timezone.utc)
+
+
+def _buyer(faker: Faker, channel: str) -> dict:
+    return {
+        "buyer_name": faker.name(),
+        "buyer_email": faker.email(),
+        "shipping_city": faker.city(),
+        "shipping_country": _COUNTRY_BY_CHANNEL.get(channel, "US"),
+    }
