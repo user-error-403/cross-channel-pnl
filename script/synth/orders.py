@@ -61,7 +61,7 @@ def _popularity_weight(cfg: Config, listing: Listing) -> float:
 
 
 def _daily_order_count(cfg: Config, day_rng: random.Random, day: date) -> int:
-    """Daily orders total from the configured range, scaled by seasonality."""
+    """Daily orders total from the configured range, scaled by seasonality (Nov and Dec)."""
     low, high = cfg.per_day_orders_range
     base = day_rng.randint(low, high)
     multiplier = _SEASONALITY_BY_WEEKDAY[day.weekday()] * _HOLIDAY_MULTIPLIER.get(
@@ -133,3 +133,79 @@ def _buyer(faker: Faker, channel: str) -> dict:
         "shipping_city": faker.city(),
         "shipping_country": _COUNTRY_BY_CHANNEL.get(channel, "US"),
     }
+
+
+# ------------------------------------------------------------
+# GENERATE ORDERS
+# ------------------------------------------------------------
+
+
+def generate_orders_for_day(
+    cfg: Config, catalog: Catalog, listings: list[Listing], day: date
+) -> list[dict]:
+    day_rng = random.Random(f"{cfg.seed}:orders:{day.isoformat()}")
+    day_faker = stage_faker(cfg.seed, f"orders:{day.isoformat()}")
+
+    total_orders = _daily_order_count(cfg, day_rng, day)
+    ch_shares = _split_by_channel(cfg, total_orders)
+
+    rows: list[dict] = []
+    for channel in sorted(ch_shares):
+        item_pool = [itm for itm in listings if itm.channel == channel]
+        weight = [_popularity_weight(cfg, itm) for itm in item_pool]
+
+        for seq in range(1, ch_shares[channel] + 1):
+            rng_order = random.Random(
+                f"{cfg.seed}:order:{day.isoformat()}:{channel}:{seq}"
+            )
+
+            order_id = _order_id(channel, day, seq)
+            placed_at = _placed_at(rng_order, day)
+            n_lines = rng_order.randint(*cfg.items_per_order_range)
+
+            orders = cfg.order_status_weights
+            status = rng_order.choices(list(orders.keys()), list(orders.values()))
+            is_deleted = rng_order.random() < cfg.soft_delete_order_rate
+            chosen_item = _sample_listings(rng_order, item_pool, weight, n_lines)
+
+            # TODO: Move to list dictionary, to enable calculation within rows dictionary key
+            buyer = _buyer(day_faker, channel)
+            order_line_id = _order_line_id(order_id, seq)
+            ch_order_id = _channel_order_id(channel, day, seq)
+            orphan_roll = cfg.orphan_line_rate
+            currency_defect_roll = cfg.currency_defect_rate
+
+            quantity = rng_order.randint(*cfg.units_per_line_range)
+            unit_price = chosen_item[0].price
+
+            order_line = {}
+            if rng_order.random() < cfg.line_discount_rate:
+                low_pct, high_pct = cfg.line_discount_pct_range
+                pct = Decimal(str(rng_order.uniform(low_pct, high_pct)))
+                discount = _money(unit_price * quantity * pct)
+            else:
+                discount = _money(Decimal("0"))
+
+            gross = _money(unit_price * quantity - discount)
+
+            rows.append(
+                {
+                    "order_id": order_id,
+                    "channel": channel,
+                    # "channel_order_id": #,
+                    "placed_at": placed_at,
+                    # "updated_at":, #,
+                    # "currency":, #,
+                    "status": status,
+                    "is_deleted": is_deleted,
+                    "buyer_name": buyer["buyer_name"],
+                    "buyer_email": buyer["buyer_email"],
+                    "shipping_city": buyer["shipping_city"],
+                    "shipping_country": buyer["shipping_country"],
+                    # "item_count":,
+                    # "discount_amount":,
+                    # "gross_amount":,
+                }
+            )
+
+    return []
