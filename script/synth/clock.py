@@ -49,13 +49,11 @@ class SimClock:
 
     @property
     def elapsed(self) -> int:
-        """Return whole days since `start`; the first day is 0 (exclusive count)."""
+        """Count the whole days completed since `start`, so `start` itself is 0."""
         return (self.current - self.start).days
 
     def advance(self, days: int = 1) -> SimClock:
-        """
-        Return a new clock advanced by `days`, never past `end`.
-        """
+        """Return a new clock advanced by `days`, never past `end`."""
         if days < 1:
             raise ValueError(f"days must be >= 1, got {days}")
 
@@ -70,10 +68,10 @@ class SimClock:
 
     def iter_days(self) -> Iterator[date]:
         """
-        Yield every date in the window from `start` to `end`, both inclusive.
+        Yield every date from `start` to `end`, both inclusive.
 
-        - Determinism: A partially advanced clock yields the same dates as a
-          fresh one, so iteration covers the full window.
+        Iteration spans the whole window and ignores `current`,
+        so a partially advanced clock yields the same dates as a fresh one.
         """
         day = self.start
         while day <= self.end:
@@ -82,16 +80,7 @@ class SimClock:
 
 
 def load_as_of(path: Path, default: date) -> date:
-    """
-    Read the persisted current day, falling back to `default` on any read or parse error.
-
-    Args:
-        path: File holding one ISO 8601 date, with optional surrounding whitespace.
-        default: Date returned when the file is missing, unreadable, or malformed.
-
-    Returns:
-        The persisted date, or `default`.
-    """
+    """Return the ISO date stored in `path`, or `default` when the file is unusable."""
     try:
         raw = Path(path).read_text(encoding="utf-8").strip()
         return date.fromisoformat(raw)
@@ -108,8 +97,8 @@ def save_as_of(path: Path, value: date) -> None:
         value: Date written as `value.isoformat()` plus a trailing newline.
 
     Behavior:
-    - Atomicity: Readers never observe a partial file, and the temp file is
-      removed when the write fails.
+    - Readers never observe a partial file, and the temporary file is deleted
+        when the write fails.
     """
     path = Path(path)
 

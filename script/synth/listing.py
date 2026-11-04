@@ -13,6 +13,17 @@ _ASIN_ALPHABET = string.ascii_uppercase + string.digits
 
 
 class Listing(BaseModel):
+    """
+    Publish one product on one channel, priced in the channel currency.
+
+    - FX Direction: `price` is already FX-converted from the USD
+        `Product.base_price` and rounded to whole cents.
+    - Key Coupling: `marketplace_id` is the channel-native identifier that order
+        lines echo, while `listing_id` is the internal key.
+    - Null SKU Drift: `seller_sku` is `None` when the drift draw fires, so seller
+        joins must tolerate a missing value.
+    """
+
     listing_id: str
     channel: str
     product_id: str
@@ -77,9 +88,14 @@ def _render_seller_sku(
     channel: str, fields: dict[str, str], cfg: Config, rng: random.Random
 ) -> str | None:
     """
-    Transform SKU fields into a channel-formatted, drifted seller SKU.
+    Render SKU fields into the channel template, then apply the configured drift defects.
 
-    - Nullability: Returns `None` on one draw below `cfg.sku_null_rate`.
+    Casing and typo drift run after the channel prefix, and truncation runs last,
+    so `sku_max_len` always wins over the drift edits.
+
+    Returns:
+    - The SKU never exceeds `CHANNEL_PROFILES[channel]["sku_max_len"]` and never
+        ends with a `-` or `_`.
     """
 
     if rng.random() < cfg.sku_null_rate:
@@ -122,7 +138,10 @@ def _channel_price(
     base_price: Decimal, channel: str, cfg: Config, rng: random.Random
 ) -> Decimal:
     """
-    Transform a USD base price into a channel-currency repriced amount.
+    Reprice a USD base price for one channel and round it to whole cents.
+
+    Conversion divides by `cfg.fx_rates` because each rate is USD per unit of
+    foreign currency, then the channel multiplier and a ±2% jitter apply.
     """
     currency = cfg.channel_currency[channel]
     fx_rate = Decimal(str(cfg.fx_rates[currency]))  # USD per 1 unit of foreign currency
@@ -132,6 +151,7 @@ def _channel_price(
     # (10000 + fluctuation)/10000 converts to scale: +/-200 -> 1.02/0.98 or +/-2%.
     fluctuation = Decimal(10000 + rng.randint(-200, 200)) / Decimal(10000)
     price = foreign_price * multiplier * fluctuation
+
     return price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
@@ -149,6 +169,10 @@ def _channel_title(
 ) -> str:
     """
     Transform a product into a channel-specific product title.
+
+    Expectations:
+    - Every `CATEGORIES_LIST` entry declares at least two modifiers, because the
+        Amazon style samples two without replacement.
     """
     ch_profile = CHANNEL_PROFILES[channel]
     ch_mods = CATEGORIES_LIST[category]["modifiers"]
@@ -175,17 +199,28 @@ def _channel_title(
 # ------------------------------------------------------------
 
 
-def generate_listings(
-    cfg: Config, catalog: Catalog, rng: random.Random
-) -> list[Listing]:
+def generate_listings(cfg: Config, catalog: Catalog) -> list[Listing]:
     """
     Generate one listing per product and configured channel.
 
-    - Grain: Exactly one `Listing` per `product_id` and `channel`.
-    - Uniqueness: `marketplace_id` is unique across the returned list.
-    - Referential Integrity: Every `product_id` resolves to a `Catalog.product`.
-    - Determinism: Rows are keyed by `f"{cfg.seed}:listing:{p_idx}:{channel}"`, so
-      adding a channel does not disturb existing listings.
+    Workflow:
+    - Initialize: clear the `marketplace_id` set and the `listing_id` counter.
+    - Hydrate: resolve each product's brand and category from `catalog`.
+    - Transform: reduce the product, brand, and category into SKU fields.
+    - Transform: build each channel's `marketplace_id`, seller SKU, title,
+        and price from a per-entity RNG.
+    - Validate: reject a repeated `marketplace_id` before appending the row.
+
+    Expectations:
+    - Exactly one `Listing` exists per `product_id` and `channel`, and
+        `marketplace_id` is unique across the returned list.
+    - Each row's randomized fields come from
+        `f"{cfg.seed}:listing:{p_idx}:{channel}"`, so appending a channel to
+        `store_channels` leaves existing rows untouched.
+
+    Returns:
+    - `listing_id` is a running count over return order, so inserting a channel
+        renumbers every later listing even though their other fields stay fixed.
     """
 
     seen_marketplace_ids: set[str] = set()

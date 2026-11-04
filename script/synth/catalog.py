@@ -40,14 +40,20 @@ def _make_id(prefix: str, i: int) -> str:
 
 def generate_catalog(cfg: Config, rng: random.Random) -> Catalog:
     """
-    Build the synthetic catalog of priced products from `cfg` and the reference lists.
+    Build the brand, category, and product lists for one run.
 
-    - Referential Integrity: Every `brand_id` and `category_id` in `products`
-      resolves inside the returned `brands` and `categories`.
-    - Determinism: Products are keyed by `f"{cfg.seed}:product:{idx}"`, so
-      changing `n_products` leaves existing products untouched.
-    - Uniqueness: `Brand.id`, `Category.id`, and `Product.id` are unique within
-      the returned `Catalog`.
+    Workflow:
+    - Initialize: sample up to `cfg.n_brands` names from `BRAND_NAMES`.
+    - Hydrate: copy every `CATEGORIES_LIST` key into a `Category`.
+    - Transform: derive each product from a per-product RNG seeded with
+       `cfg.seed`and the product index, then append it.
+
+    Expectations:
+    - Raising `cfg.n_products` appends products and leaves every existing `Product` untouched.
+
+    Failures:
+    - Finding: A `cfg.n_brands` above the length of `BRAND_NAMES` silently yields
+      fewer brands, because the sample is capped instead of raising.
     """
     brands = [
         Brand(id=_make_id("br", i), name=name)

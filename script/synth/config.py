@@ -8,17 +8,17 @@ class Config(BaseModel):
     """
     Declare the run settings shared by every synthetic-data generator.
 
-    - FX Direction: `fx_rates` holds USD per one unit of foreign currency, so a
-      USD base price divides by the rate.
-    - Date Window: `start_date` and `end_date` are both inclusive, so the span
-      is the difference plus one.
-    - Threshold Coupling: `drift_lowercase_rate` and `drift_titlecase_rate` are
-      cumulative cut-offs on one draw, not independent probabilities.
-    - Key Coupling: Every `store_channels` entry is keyed in `channel_currency`
-      and `channel_price_multiplier`.
+    - Date Window: `start_date` and `end_date` are both inclusive,
+        so the span is the difference plus one.
+    - Key Coupling: Every `store_channels` entry is keyed in `channel_currency`,
+        `channel_price_multiplier`, and `channel_order_share`, and mirrored in
+        `reference.CHANNEL_PROFILES`.
+    - Rate Coupling: `drift_lowercase_rate` and `drift_titlecase_rate` are
+        cumulative cut-offs on one draw, while every other `*_rate` field draws
+        independently per row.
+    - Range Bounds: Every `*_range` tuple bounds its draws inclusively on both
+        ends, so `(1, 4)` can yield 4.
     """
-
-    # TODO: Update docstring to inlcude orders configs
 
     seed: int = 42
 
