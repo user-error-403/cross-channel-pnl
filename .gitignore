@@ -1,5 +1,5 @@
 # personal configs
-dev.env
+.dev/
 
 # GCP service account keys
 **/*service-account*.json

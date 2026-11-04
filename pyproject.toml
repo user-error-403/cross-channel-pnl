@@ -9,6 +9,7 @@ select = [
     "F",    # pyflakes (unused imports/vars, undefined names)
     "W505", # docstring/comment line too long (max-doc-length)
 ]
+extend-select = ["TD"] # Catch TODO inline comment
 
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 120 
