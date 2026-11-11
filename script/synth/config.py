@@ -11,8 +11,11 @@ class Config(BaseModel):
     - Date Window: `start_date` and `end_date` are both inclusive,
         so the span is the difference plus one.
     - Key Coupling: Every `store_channels` entry is keyed in `channel_currency`,
-        `channel_price_multiplier`, and `channel_order_share`, and mirrored in
-        `reference.CHANNEL_PROFILES`.
+        `channel_price_multiplier`, `channel_fee_lag_days`, and
+        `channel_order_share`, and mirrored in `reference.CHANNEL_PROFILES`.
+    - Fee Lag: `channel_fee_lag_days` bounds the inclusive day count between an
+        order and the fee it charges, because fees post at shipment or settlement,
+        not at checkout.
     - Rate Coupling: `drift_lowercase_rate` and `drift_titlecase_rate` are
         cumulative cut-offs on one draw, while every other `*_rate` field draws
         independently per row.
@@ -54,6 +57,7 @@ class Config(BaseModel):
     orphan_line_rate: float = 0.01
     soft_delete_order_rate: float = 0.005
     currency_defect_rate: float = 0.01
+    fee_currency_defect_rate: float = 0.01
 
     # USD per 1 unit of foreign currency
     default_currency: str = "USD"
@@ -70,6 +74,15 @@ class Config(BaseModel):
     # Multiplier on top of FX-converted price
     channel_price_multiplier: dict[str, float] = Field(
         default_factory=lambda: {"amazon": 1.00, "ebay": 0.97, "woocommerce": 0.95}
+    )
+
+    # Inclusive days between the order and the fee posting e.g. FBA ships
+    channel_fee_lag_days: dict[str, tuple[int, int]] = Field(
+        default_factory=lambda: {
+            "amazon": (1, 3),
+            "ebay": (0, 1),
+            "woocommerce": (0, 0),
+        }
     )
 
     sku_null_rate: float = 0.05

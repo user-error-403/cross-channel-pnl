@@ -1,15 +1,3 @@
-"""Static reference data consumed by every synthetic-data generator.
-
-- Key Coupling: Every `CHANNEL_PROFILES` key mirrors a `Config.store_channels`
-  entry and is also keyed in `Config.channel_currency` and
-  `Config.channel_price_multiplier`.
-- Mandatory Schema: Each `CHANNEL_PROFILES` entry supplies `sku_template`,
-  `sku_max_len`, `marketplace_id_kind`, `title_style`, and `title_max_len`.
-- Text Coupling: Every `CATEGORIES_LIST` item string appears verbatim inside the
-  generated `Product.name`, because `listing._sku_fields` recovers the item by
-  substring match.
-"""
-
 CHANNEL_PROFILES: dict[str, dict] = {
     "amazon": {
         "sku_template": "{brand}-{item}-{code}",
@@ -181,5 +169,97 @@ CATEGORIES_LIST: dict[str, dict[str, list[str]]] = {
             "Seat Organizer",
         ],
         "modifiers": ["Universal", "Heavy-Duty", "Quick-Install", "Waterproof"],
+    },
+}
+
+# scope: 'line' charges one fee per 'order line'; 'order' charges one fee per 'order'
+# per_unit: multiplies flat and minimum by the line quantity
+FEE_CONFIG: dict[str, dict[str, dict]] = {
+    "amazon": {
+        "referral": {
+            "scope": "line",
+            "per_unit": True,
+            "percent_by_category": {
+                "Electronics": "8",
+                "Home & Kitchen": "15",
+                "Sports & Outdoors": "15",
+                "Pet Supplies": "15",
+                "Beauty & Personal Care": "15",
+                "Toys & Games": "15",
+                "Office Products": "15",
+                "Tools & Home Improvement": "15",
+                "Baby": "15",
+                "Apparel & Accessories": "17",
+                "Health & Household": "15",
+                "Automotive": "12",
+            },
+            "fixed": "0",
+            "minimum": "0.30",
+        },
+        "fulfillment": {
+            "scope": "line",
+            "per_unit": True,
+            "percent": "0",
+            "fixed": "3.68",
+            "minimum": "0",
+            "tiers": [
+                {"max_base_cost": "10.00", "fixed": "3.06"},
+                {"max_base_cost": "25.00", "fixed": "3.68"},
+                {"max_base_cost": "50.00", "fixed": "5.64"},
+                {"max_base_cost": None, "fixed": "6.92"},
+            ],
+        },
+    },
+    "ebay": {
+        "final_value": {
+            "scope": "line",
+            "per_unit": False,
+            "percent_by_category": {
+                "Electronics": "7",
+                "Home & Kitchen": "13",
+                "Sports & Outdoors": "14",
+                "Pet Supplies": "14",
+                "Beauty & Personal Care": "14",
+                "Toys & Games": "14",
+                "Office Products": "14",
+                "Tools & Home Improvement": "14",
+                "Baby": "14",
+                "Apparel & Accessories": "12",
+                "Health & Household": "14",
+                "Automotive": "14",
+            },
+            "fixed": "0",
+            "minimum": "0",
+        },
+        "final_value_fixed": {
+            "scope": "order",
+            "per_unit": False,
+            "percent": "0",
+            "fixed": "0.45",
+            "minimum": "0",
+        },
+    },
+    "woocommerce": {
+        "gateway": {
+            "scope": "order",
+            "per_unit": False,
+            "percent": "1.5",
+            "fixed": "0.20",
+            "minimum": "0",
+        },
+    },
+}
+
+SOURCE_FEE_TYPES: dict[str, dict[str, str]] = {
+    "amazon": {
+        "referral": "Commission",
+        "fulfillment": "FBAPerUnitFulfillmentFee",
+    },
+    "ebay": {
+        "final_value": "FINAL_VALUE_FEE",
+        "final_value_fixed": "FINAL_VALUE_FEE_FIXED_PER_ORDER",
+    },
+    "woocommerce": {
+        "gateway": "stripe_fee",
     },
 }

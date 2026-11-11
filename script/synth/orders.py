@@ -8,10 +8,6 @@ from .config import Config
 from .listing import Listing
 from .seeding import stage_faker
 
-# ------------------------------------------------------------
-# SEASONALITY CONSTANTS AND HELPER FUNCTIONS
-# ------------------------------------------------------------
-
 _MONEY = Decimal("0.01")
 # Mon to Sun: values in days order
 _SEASONALITY_BY_WEEKDAY = (0.92, 0.95, 0.97, 1.00, 1.10, 1.15, 1.05)
@@ -31,25 +27,8 @@ def _order_line_id(order_id: str, line_no: int) -> str:
     return f"{order_id}-{line_no:02d}"
 
 
-def _channel_order_id(channel: str, day: date, sequence: int) -> str:
-    # Ordinal day e.g. 2026-10-27 -> 739,916 (days since 0001-01-01)
-    # Channel order ID pattern:
-    #   Amazon : 113-0739916-xxxxxxx
-    #   Ebay: 916-xxxxx-0739 (739916 % 1000 -> 916
-    #                         739916 // 1000 -> 739)
-    #   WooCommerce: 739916xxxx
-    ordinal_day = day.toordinal()
-
-    if channel == "amazon":
-        return f"113-{ordinal_day:07d}-{sequence:07d}"
-    if channel == "ebay":
-        return f"{ordinal_day % 1000:03d}-{sequence:05d}-{ordinal_day // 1000:04d}"
-
-    return f"{ordinal_day}{sequence:04d}"
-
-
 # ------------------------------------------------------------
-# DETERMINISTIC SPLITS
+# SPLITING ORDERS HELPER FUNCTIONS
 # ------------------------------------------------------------
 
 
@@ -132,6 +111,24 @@ def _sample_listings(
 # ------------------------------------------------------------
 # TRANSACTION METADATA
 # ------------------------------------------------------------
+
+
+# Return example for '2026-10-27'
+# Ordinal day equivalent: '739,916' (days since 0001-01-01)
+# Channel order ID pattern:
+#   Amazon : 113-0739916-xxxxxxx
+#   Ebay: 916-xxxxx-0739 (739916 % 1000 -> 916
+#                         739916 // 1000 -> 739)
+#   WooCommerce: 739916xxxx
+def _channel_order_id(channel: str, day: date, sequence: int) -> str:
+    ordinal_day = day.toordinal()
+
+    if channel == "amazon":
+        return f"113-{ordinal_day:07d}-{sequence:07d}"
+    if channel == "ebay":
+        return f"{ordinal_day % 1000:03d}-{sequence:05d}-{ordinal_day // 1000:04d}"
+
+    return f"{ordinal_day}{sequence:04d}"
 
 
 def _placed_at(rng: random.Random, day: date) -> datetime:
@@ -259,6 +256,7 @@ def generate_orders_for_day(
                     line["product_id"] = None
 
                 if is_currency_defect:
+                    # Relabel to another store channel's currency, excluding the current one
                     others = [ch for ch in sorted(cfg.store_channels) if ch != channel]
                     if others:
                         line["currency"] = cfg.channel_currency[others[0]]
