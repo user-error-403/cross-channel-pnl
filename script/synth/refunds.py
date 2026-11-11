@@ -1,0 +1,3 @@
+def generate_refunds():
+    # TODO: Refunded lines, partial/full, refund date after the order, Small set of orphan refunds
+    ...

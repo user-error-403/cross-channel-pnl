@@ -1,0 +1,3 @@
+def generate_service_fees():
+    # TODO: Amazon service fee per day RNG, mixed order scoped, account level e.g. Subscrption/storage fee
+    ...

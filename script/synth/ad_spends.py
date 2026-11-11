@@ -1,0 +1,3 @@
+def generate_ad_spends():
+    # TODO: Amazon listings: per day RNG, impressions -> clicks -> spend
+    ...

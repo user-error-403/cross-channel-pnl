@@ -1,31 +1,14 @@
 import random
 from datetime import datetime, time, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from itertools import groupby
 
 from .catalog import Catalog
 from .config import Config
 from .reference import FEE_CONFIG, SOURCE_FEE_TYPES
+from .money_utils import money, to_decimal, wrong_currency
 
 _FEEABLE_STATUSES = ("pending", "shipped", "delivered")
-
-
-def _money(value: Decimal) -> Decimal:
-    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-
-def _decimal(value: str) -> Decimal:
-    return Decimal(str(value))
-
-
-def to_usd(amount: Decimal, currency: str, cfg: Config) -> Decimal:
-    rate = Decimal(str(cfg.fx_rates[currency]))
-    return _money(amount * rate)
-
-
-def to_local(usd: Decimal, currency: str, cfg: Config) -> Decimal:
-    rate = Decimal(str(cfg.fx_rates[currency]))
-    return _money(usd / rate)
 
 
 # ------------------------------------------------------------
@@ -60,9 +43,9 @@ def _lines_by_order(orders: list[dict]) -> dict[str, list[dict]]:
 def _percent(rule: dict, category: str | None) -> Decimal:
     by_category = rule.get("percent_by_category")
     if by_category is None:
-        return _decimal(rule["percent"])
+        return to_decimal(rule["percent"])
 
-    return _decimal(by_category[category])
+    return to_decimal(by_category[category])
 
 
 def _flat_charge(rule: dict, base_cost: Decimal) -> Decimal:
@@ -71,14 +54,14 @@ def _flat_charge(rule: dict, base_cost: Decimal) -> Decimal:
     # Fall back to fixed charge if not amazon channel
     tiers = rule.get("tiers")
     if not tiers:
-        return _decimal(rule["fixed"])
+        return to_decimal(rule["fixed"])
 
     # Resolve amazon cost tiers
     # The first tier whose `max_base_cost` covers the cost wins. `None` bound matches every remaining cost.
     for tier in tiers:
         limit = tier["max_base_cost"]
-        if limit is None or base_cost <= _decimal(limit):
-            return _decimal(tier["fixed"])
+        if limit is None or base_cost <= to_decimal(limit):
+            return to_decimal(tier["fixed"])
 
     raise ValueError(f"no fee tier covers base cost {base_cost}")
 
@@ -103,11 +86,11 @@ def _fee_amount(
     amount = gross * percent / 100
     amount += flat_charge * multiplier
 
-    floor = _decimal(rule["minimum"]) * multiplier
+    floor = to_decimal(rule["minimum"]) * multiplier
     if amount < floor:
         amount = floor
 
-    return _money(amount)
+    return money(amount)
 
 
 def _line_fee_amount(
@@ -130,7 +113,7 @@ def _line_fee_amount(
 
 def _order_fee_amount(rule: dict, gross: Decimal) -> Decimal:
     """Return one order fee, which has no line, no category, and no tier."""
-    return _fee_amount(rule, gross, 1, _percent(rule, None), _decimal(rule["fixed"]))
+    return _fee_amount(rule, gross, 1, _percent(rule, None), to_decimal(rule["fixed"]))
 
 
 # ------------------------------------------------------------
@@ -144,16 +127,6 @@ def _fee_id(order_id: str, line_id: str | None, fee_type: str) -> str:
         return f"fee_{order_id}_{fee_type}"
 
     return f"fee_{line_id.replace('-', '_')}_{fee_type}"
-
-
-def _defect_currency(cfg: Config, channel: str) -> str | None:
-    """Return a relabelled store channel's currency."""
-    others = [ch for ch in sorted(cfg.store_channels) if ch != channel]
-    # 'None' so _fee_row 'is_defect' skips instead of relabelling w/ its own currency
-    if not others:
-        return None
-
-    return cfg.channel_currency[others[0]]
 
 
 def _fee_row(
@@ -250,7 +223,7 @@ def generate_fees(
             raise ValueError(f"no fee schedule for channel '{channel}'")
 
         order_rng = random.Random(f"{cfg.seed}:fees:{header['order_id']}")
-        defect_currency = _defect_currency(cfg, channel)
+        defect_currency = wrong_currency(cfg, channel)
         posted_at = _posted_at(cfg, header, order_rng)
 
         for fee_type in sorted(FEE_CONFIG[channel]):
@@ -302,18 +275,3 @@ def generate_fees(
                 )
 
     return fees
-
-
-def generate_refunds():
-    # TODO: Refunded lines, partial/full, refund date after the order, Small set of orphan refunds
-    ...
-
-
-def generate_ad_spends():
-    # TODO: Amazon listings: per day RNG, impressions -> clicks -> spend
-    ...
-
-
-def generate_service_fees():
-    # TODO: Amazon service fee per day RNG, mixed order scoped, account level e.g. Subscrption/storage fee
-    ...
