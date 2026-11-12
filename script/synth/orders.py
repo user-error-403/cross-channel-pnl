@@ -165,28 +165,29 @@ def generate_orders_for_day(
 
     Workflow:
     - Initialize: seed a day-scoped RNG and Faker from `cfg.seed` and `day`.
-    - Delegate: draw the order total and the per-channel split.
-    - Transform: build header fields and per-line amounts, sampling listings without
-        replacement weighted by popularity.
-    - Transform: rewrite the listing keys of orphan lines and swap the currency
-        of defect lines at their configured rates.
+    - Transform:
+        - Draw the day's order total, then divide it across store channels
+          by largest remainder.
+        - Draw each order's timestamp, status, and line count, then pick its
+          lines by popularity weight without replacement and price each line.
+        - Rewrite the listing keys of orphan lines and swap the currency
+          of defect lines at their configured rates.
     - Enrich: attach buyer identity and shipping fields from the day Faker.
 
     Expectations:
-    - Output depends only on `cfg.seed` and `day`, while no other `Faker`
-        instance draws between `stage_faker` calls, because `Faker.seed` sets
-        process-global state.
-    - `item_count`, `discount_amount`, and `gross_amount` on each header
-        reconcile with the lines emitted in the same order.
+    - Given the same `cfg` and `listings`, a repeated `day` returns identical
+      rows, because every draw is seeded from `cfg.seed` and `day`.
+    - `item_count` counts units, and `gross_amount` is already net of
+      `discount_amount`, so the two header amounts sum the same lines.
     - Every line carries the `order_id` of the header emitted alongside it.
 
     Returns:
     - A flat list interleaving one header per order with that order's lines,
-        channels in name-ascending order.
+      channels in name-ascending order.
 
     Failures:
     - Finding: A channel with no listings still emits headers with zero lines and
-        zero amounts, so the day under-counts revenue without halting.
+      zero amounts, so the day under-counts revenue without halting.
     """
     day_rng = random.Random(f"{cfg.seed}:orders:{day.isoformat()}")
     day_faker = stage_faker(cfg.seed, f"orders:{day.isoformat()}")

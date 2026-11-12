@@ -98,7 +98,7 @@ def save_as_of(path: Path, value: date) -> None:
 
     Behavior:
     - Readers never observe a partial file, and the temporary file is deleted
-        when the write fails.
+      when the write fails.
     """
     path = Path(path)
 

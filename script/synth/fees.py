@@ -1,12 +1,17 @@
 import random
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
-from itertools import groupby
 
 from .catalog import Catalog
 from .config import Config
+from .money_utils import (
+    lines_by_order,
+    money,
+    to_decimal,
+    window_end,
+    wrong_currency,
+)
 from .reference import FEE_CONFIG, SOURCE_FEE_TYPES
-from .money_utils import money, to_decimal, wrong_currency
 
 _FEEABLE_STATUSES = ("pending", "shipped", "delivered")
 
@@ -28,15 +33,6 @@ def _product_index(catalog: Catalog) -> dict[str, tuple[str, Decimal]]:
     return {
         prod.id: (category_name[prod.category_id], prod.base_cost)
         for prod in catalog.products
-    }
-
-
-def _lines_by_order(orders: list[dict]) -> dict[str, list[dict]]:
-    """Group order lines by `order_id`, keeping generation order."""
-    lines = (row for row in orders if "order_line_id" in row)
-    return {
-        key: list(group)
-        for key, group in groupby(lines, key=lambda row: row["order_id"])
     }
 
 
@@ -77,8 +73,8 @@ def _fee_amount(
     Return one fee: percent of `gross`, plus `flat_charge`, never below the minimum.
 
     - `units` is the line quantity, or 1 for order fees. Multiply `flat_charge`
-        and `minimum` only when `rule["per_unit"]`, because `gross` already includes
-        the quantity.
+      and `minimum` only when `rule["per_unit"]`, because `gross` already includes
+      the quantity.
     - `minimum` is compared after the `flat_charge` is added, so it bounds the total.
     """
 
@@ -112,8 +108,14 @@ def _line_fee_amount(
 
 
 def _order_fee_amount(rule: dict, gross: Decimal) -> Decimal:
-    """Return one order fee, which has no line, no category, and no tier."""
-    return _fee_amount(rule, gross, 1, _percent(rule, None), to_decimal(rule["fixed"]))
+    """Return one order fee, for no line, no category, and no tier."""
+    return _fee_amount(
+        rule=rule,
+        gross=gross,
+        units=1,
+        percent=_percent(rule, None),
+        flat_charge=to_decimal(rule["fixed"]),
+    )
 
 
 # ------------------------------------------------------------
@@ -166,9 +168,8 @@ def _posted_at(cfg: Config, header: dict, rng: random.Random) -> datetime:
 
     low, high = cfg.channel_fee_lag_days[header["channel"]]
     posted_at = header["placed_at"] + timedelta(days=rng.randint(low, high))
-    clamp_end_date = datetime.combine(cfg.end_date, time.max, tzinfo=timezone.utc)
 
-    return min(posted_at, clamp_end_date)
+    return min(posted_at, window_end(cfg))
 
 
 # ------------------------------------------------------------
@@ -182,34 +183,25 @@ def generate_fees(
     orders: list[dict],
 ) -> list[dict]:
     """
-    Return one fee row per applicable `FEE_CONFIG` entry of every billable order.
+    Return one fee row per applicable `FEE_CONFIG` rule of every billable order.
 
-    Workflow:
-    - Initialize: index `catalog` by product for category and supplier cost, and
-        group the flat `orders` rows into headers and lines.
-    - Delegate: skip cancelled orders, then walk each channel's fee types in name
-        order so the flagged-defect draw order stays stable.
-    - Transform: charge an `order` scoped rule once on the header gross, and a
-        `line` scoped rule once per line on the line gross.
-    - Enrich: copy the order timestamps and channel currency, then relabel a
-        bounded share of rows into another channel currency.
+    One `random.Random` per order feeds its posted timestamp and every fee row
+    of that order. A row's defect draw therefore depends on how many rows came
+    before it, and sorted fee type names fix that sequence.
 
     Expectations:
-    - Every `cfg.store_channels` entry is keyed in `FEE_CONFIG`.
-    - `catalog` resolves the category and `base_cost` of every line `product_id`,
-        because both category rates and cost tiers are read from it.
+    - Every `cfg.store_channels` entry is keyed in `FEE_CONFIG`,
+      `SOURCE_FEE_TYPES`, and `channel_fee_lag_days`.
+    - A line-scope rule skips a line whose `product_id` does not resolve in
+      `catalog`, so an orphan line pays the order-scope fees only.
 
     Returns:
-    - Rows are ordered by header, then fee type name, then line.
-    - `order_line_id` is `None` on `order` scoped fees.
-    - An orphan line has no catalog product, so it emits no fee row at all.
-
-    Failures:
-    - Finding: A channel missing from `FEE_CONFIG` raises `ValueError` instead
-        of silently generating a channel with zero fees.
+    - A defect order still emits clean rows, because `is_currency_defect` needs
+      both the order draw and the row draw.
+    - Rows come out ordered by order header, then fee type name, then line.
     """
     category_index = _product_index(catalog)
-    lines_by_order = _lines_by_order(orders)
+    order_lines = lines_by_order(orders)
 
     fees: list[dict] = []
     for header in orders:
@@ -230,6 +222,8 @@ def generate_fees(
             rule = FEE_CONFIG[channel][fee_type]
             source_fee_type = SOURCE_FEE_TYPES[channel][fee_type]
 
+            # One charge on the header gross amount, using fixed rule data
+            # So an order whose 'Line IDs' are all orphans still pays it.
             if rule["scope"] == "order":
                 amount = _order_fee_amount(rule, header["gross_amount"])
                 fees.append(
@@ -247,7 +241,10 @@ def generate_fees(
                 )
                 continue
 
-            for line in lines_by_order.get(header["order_id"], ()):
+            # One charge per order line, once per line-scope rule
+            # Applies catalog category rate and cost tier.
+            # A null 'product_id' is an orphan order line -> Skip
+            for line in order_lines.get(header["order_id"], ()):
                 product_id = line["product_id"]
                 if product_id not in category_index:
                     continue

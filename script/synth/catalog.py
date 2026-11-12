@@ -2,23 +2,24 @@ import random
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
-from pydantic import BaseModel
-
 from .config import Config
 from .reference import BRAND_NAMES, CATEGORIES_LIST
 
 
-class Brand(BaseModel):
+@dataclass
+class Brand:
     id: str
     name: str
 
 
-class Category(BaseModel):
+@dataclass
+class Category:
     id: str
     name: str
 
 
-class Product(BaseModel):
+@dataclass
+class Product:
     id: str
     name: str
     brand_id: str
@@ -46,7 +47,7 @@ def generate_catalog(cfg: Config, rng: random.Random) -> Catalog:
     - Initialize: sample up to `cfg.n_brands` names from `BRAND_NAMES`.
     - Hydrate: copy every `CATEGORIES_LIST` key into a `Category`.
     - Transform: derive each product from a per-product RNG seeded with
-       `cfg.seed`and the product index, then append it.
+      `cfg.seed`and the product index, then append it.
 
     Expectations:
     - Raising `cfg.n_products` appends products and leaves every existing `Product` untouched.

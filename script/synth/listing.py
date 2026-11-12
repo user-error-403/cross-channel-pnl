@@ -1,8 +1,7 @@
 import random
 import string
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
-
-from pydantic import BaseModel
 
 from .catalog import Brand, Catalog, Category, Product
 from .config import Config
@@ -12,16 +11,17 @@ from .reference import CATEGORIES_LIST, CHANNEL_PROFILES
 _ASIN_ALPHABET = string.ascii_uppercase + string.digits
 
 
-class Listing(BaseModel):
+@dataclass
+class Listing:
     """
     Publish one product on one channel, priced in the channel currency.
 
     - FX Direction: `price` is already FX-converted from the USD
-        `Product.base_price` and rounded to whole cents.
+      `Product.base_price` and rounded to whole cents.
     - Key Coupling: `marketplace_id` is the channel-native identifier that order
-        lines echo, while `listing_id` is the internal key.
+      lines echo, while `listing_id` is the internal key.
     - Null SKU Drift: `seller_sku` is `None` when the drift draw fires, so seller
-        joins must tolerate a missing value.
+      joins must tolerate a missing value.
     """
 
     listing_id: str
@@ -95,7 +95,7 @@ def _render_seller_sku(
 
     Returns:
     - The SKU never exceeds `CHANNEL_PROFILES[channel]["sku_max_len"]` and never
-        ends with a `-` or `_`.
+      ends with a `-` or `_`.
     """
 
     if rng.random() < cfg.sku_null_rate:
@@ -172,7 +172,7 @@ def _channel_title(
 
     Expectations:
     - Every `CATEGORIES_LIST` entry declares at least two modifiers, because the
-        Amazon style samples two without replacement.
+      Amazon style samples two without replacement.
     """
     ch_profile = CHANNEL_PROFILES[channel]
     ch_mods = CATEGORIES_LIST[category]["modifiers"]
@@ -206,21 +206,22 @@ def generate_listings(cfg: Config, catalog: Catalog) -> list[Listing]:
     Workflow:
     - Initialize: clear the `marketplace_id` set and the `listing_id` counter.
     - Hydrate: resolve each product's brand and category from `catalog`.
-    - Transform: reduce the product, brand, and category into SKU fields.
-    - Transform: build each channel's `marketplace_id`, seller SKU, title,
-        and price from a per-entity RNG.
+    - Transform:
+        - Reduce the product, brand, and category into SKU fields.
+        - build each channel's `marketplace_id`, seller SKU, title,
+          and price from a per-entity RNG.
     - Validate: reject a repeated `marketplace_id` before appending the row.
 
     Expectations:
     - Exactly one `Listing` exists per `product_id` and `channel`, and
-        `marketplace_id` is unique across the returned list.
+      `marketplace_id` is unique across the returned list.
     - Each row's randomized fields come from
-        `f"{cfg.seed}:listing:{p_idx}:{channel}"`, so appending a channel to
-        `store_channels` leaves existing rows untouched.
+      `f"{cfg.seed}:listing:{p_idx}:{channel}"`, so appending a channel to
+      `store_channels` leaves existing rows untouched.
 
     Returns:
     - `listing_id` is a running count over return order, so inserting a channel
-        renumbers every later listing even though their other fields stay fixed.
+      renumbers every later listing even though their other fields stay fixed.
     """
 
     seen_marketplace_ids: set[str] = set()
