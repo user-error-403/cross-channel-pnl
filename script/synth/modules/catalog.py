@@ -80,7 +80,9 @@ def generate_catalog(cfg: Config, rng: random.Random) -> Catalog:
         item = rand_entity.choice(preset["items"])
 
         # Integer cents to stay exact: (300 - 8000)/100 -> 3.00 - 80.00 USD.
-        cost = Decimal(rand_entity.randint(300, 8000)) / 100
+        cost = (Decimal(rand_entity.randint(300, 8000)) / 100).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
 
         # Initial margin covers marketplace fees, ads, and refunds.
         # Retail price = 1.8x to 2.5x the supplier cost (80% - 150% markup).

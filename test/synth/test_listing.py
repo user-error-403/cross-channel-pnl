@@ -1,11 +1,11 @@
 import re
 import pytest
 
-from script.synth.catalog import Catalog, generate_catalog
-from script.synth.config import Config
-from script.synth.listing import generate_listings
-from script.synth.reference import CHANNEL_PROFILES
-from script.synth.seeding import stage_rng
+from script.synth.modules.catalog import Catalog, generate_catalog
+from script.synth.modules.config import Config
+from script.synth.modules.listing import generate_listings
+from script.synth.modules.reference import CHANNEL_PROFILES
+from script.synth.modules.seeding import stage_rng
 
 MARKETPLACE_PATTERNS = {
     "amazon": re.compile(r"^B0[A-Z0-9]{8}$"),

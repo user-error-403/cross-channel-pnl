@@ -4,12 +4,12 @@ from itertools import groupby
 
 import pytest
 
-from script.synth.catalog import generate_catalog
-from script.synth.clock import SimClock
-from script.synth.config import Config
-from script.synth.listing import Listing, generate_listings
-from script.synth.orders import generate_orders, generate_orders_for_day
-from script.synth.seeding import stage_rng
+from script.synth.modules.catalog import generate_catalog
+from script.synth.modules.clock import SimClock
+from script.synth.modules.config import Config
+from script.synth.modules.listing import Listing, generate_listings
+from script.synth.modules.orders import generate_orders, generate_orders_for_day
+from script.synth.modules.seeding import stage_rng
 
 WINDOW_START = date(2025, 1, 1)
 WINDOW_END = date(2025, 1, 31)
@@ -18,7 +18,12 @@ SAMPLE_DAY = date(2025, 1, 15)
 
 @pytest.fixture(scope="module")
 def built() -> tuple[Config, list[Listing], list[dict]]:
-    cfg = Config(start_date=WINDOW_START, end_date=WINDOW_END)
+    cfg = Config(
+        start_date=WINDOW_START,
+        end_date=WINDOW_END,
+        orphan_line_rate=1.0,
+        soft_delete_order_rate=0.5,
+    )
     catalog = generate_catalog(cfg, stage_rng(cfg.seed, "catalog"))
     listings = generate_listings(cfg, catalog)
     rows = generate_orders(cfg, listings, SimClock.from_config(cfg))
@@ -100,7 +105,7 @@ def test_lines_chaos_injection(built):
     assert orphans > 0
 
 
-def test_cancelled_and_deleted_rows_present(built):
+def test_cancelled_orders_keep_their_lines(built):
     cfg, _, rows = built
     hs = headers(rows)
     by_order = grouped(rows)
@@ -108,8 +113,8 @@ def test_cancelled_and_deleted_rows_present(built):
     cancelled = [row for row in hs if row["status"] == "cancelled"]
     deleted = [row for row in hs if row["is_deleted"]]
 
-    assert len(cancelled) > 0
-    assert len(deleted) > 0
+    assert cancelled
+    assert deleted
 
     for row in cancelled + deleted:
         # Fail if header's order lines were drop

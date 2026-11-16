@@ -1,6 +1,6 @@
-from script.synth.catalog import generate_catalog
-from script.synth.config import Config
-from script.synth.seeding import stage_rng
+from script.synth.modules.catalog import generate_catalog
+from script.synth.modules.config import Config
+from script.synth.modules.seeding import stage_rng
 
 
 def test_same_seed_same_output():
