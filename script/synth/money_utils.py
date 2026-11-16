@@ -1,4 +1,7 @@
+from datetime import datetime, time, timezone
 from decimal import ROUND_HALF_UP, Decimal
+from itertools import groupby
+
 from .config import Config
 
 
@@ -27,3 +30,16 @@ def wrong_currency(cfg: Config, channel: str) -> str | None:
         return None
 
     return cfg.channel_currency[others[0]]
+
+
+def window_end(cfg: Config) -> datetime:
+    """Return the last instant of the run window, in UTC."""
+    return datetime.combine(cfg.end_date, time.max, tzinfo=timezone.utc)
+
+
+def lines_by_order(orders: list[dict]) -> dict[str, list[dict]]:
+    """Group order lines by `order_id`, keeping generation order."""
+    lines = (row for row in orders if "order_line_id" in row)
+    return {
+        key: list(group) for key, group in groupby(lines, key=lambda r: r["order_id"])
+    }

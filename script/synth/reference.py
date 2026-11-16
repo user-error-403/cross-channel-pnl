@@ -50,16 +50,6 @@ BRAND_NAMES: list[str] = [
 ]
 
 CATEGORIES_LIST: dict[str, dict[str, list[str]]] = {
-    "Electronics": {
-        "items": [
-            "Wireless Earbuds",
-            "Bluetooth Speaker",
-            "Power Bank",
-            "USB-C Hub",
-            "Smart Plug",
-        ],
-        "modifiers": ["Compact", "Rechargeable", "Noise-Cancelling", "Portable"],
-    },
     "Home & Kitchen": {
         "items": [
             "Air Fryer",
@@ -70,26 +60,6 @@ CATEGORIES_LIST: dict[str, dict[str, list[str]]] = {
         ],
         "modifiers": ["Stainless Steel", "Non-Stick", "Stackable", "Insulated"],
     },
-    "Sports & Outdoors": {
-        "items": [
-            "Yoga Mat",
-            "Resistance Bands",
-            "Camping Lantern",
-            "Hiking Backpack",
-            "Water Bottle",
-        ],
-        "modifiers": ["Non-Slip", "Waterproof", "Lightweight", "Foldable"],
-    },
-    "Pet Supplies": {
-        "items": [
-            "Dog Harness",
-            "Cat Scratching Post",
-            "Slow Feeder Bowl",
-            "Pet Carrier",
-            "Grooming Kit",
-        ],
-        "modifiers": ["Adjustable", "Durable", "Washable", "Reflective"],
-    },
     "Beauty & Personal Care": {
         "items": [
             "Facial Cleanser",
@@ -99,46 +69,6 @@ CATEGORIES_LIST: dict[str, dict[str, list[str]]] = {
             "Makeup Brush Set",
         ],
         "modifiers": ["Hydrating", "Cordless", "Travel-Size", "Gentle"],
-    },
-    "Toys & Games": {
-        "items": [
-            "Building Blocks Set",
-            "Wooden Puzzle",
-            "RC Car",
-            "Board Game",
-            "STEM Kit",
-        ],
-        "modifiers": ["Educational", "Colorful", "Interactive"],
-    },
-    "Office Products": {
-        "items": [
-            "Desk Organizer",
-            "Wireless Mouse",
-            "Monitor Stand",
-            "Label Maker",
-            "Notebook Set",
-        ],
-        "modifiers": ["Ergonomic", "Recycled", "Adjustable", "Heavy-Duty"],
-    },
-    "Tools & Home Improvement": {
-        "items": [
-            "Cordless Drill",
-            "Screwdriver Set",
-            "Tape Measure",
-            "Tool Bag",
-            "Wrench Set",
-        ],
-        "modifiers": ["Heavy-Duty", "Precision", "Cordless", "Compact"],
-    },
-    "Baby": {
-        "items": [
-            "Baby Monitor",
-            "Stroller Organizer",
-            "Silicone Bib",
-            "Bottle Warmer",
-            "Diaper Bag",
-        ],
-        "modifiers": ["BPA-Free", "Portable", "Soft-Touch", "Adjustable"],
     },
     "Apparel & Accessories": {
         "items": [
@@ -160,16 +90,6 @@ CATEGORIES_LIST: dict[str, dict[str, list[str]]] = {
         ],
         "modifiers": ["Hypoallergenic", "Concentrated", "Rechargeable", "Compact"],
     },
-    "Automotive": {
-        "items": [
-            "Phone Mount",
-            "Tire Pressure Gauge",
-            "Car Vacuum",
-            "Dash Cam",
-            "Seat Organizer",
-        ],
-        "modifiers": ["Universal", "Heavy-Duty", "Quick-Install", "Waterproof"],
-    },
 }
 
 # scope: 'line' charges one fee per 'order line'; 'order' charges one fee per 'order'
@@ -180,18 +100,10 @@ FEE_CONFIG: dict[str, dict[str, dict]] = {
             "scope": "line",
             "per_unit": True,
             "percent_by_category": {
-                "Electronics": "8",
                 "Home & Kitchen": "15",
-                "Sports & Outdoors": "15",
-                "Pet Supplies": "15",
                 "Beauty & Personal Care": "15",
-                "Toys & Games": "15",
-                "Office Products": "15",
-                "Tools & Home Improvement": "15",
-                "Baby": "15",
                 "Apparel & Accessories": "17",
                 "Health & Household": "15",
-                "Automotive": "12",
             },
             "fixed": "0",
             "minimum": "0.30",
@@ -215,18 +127,10 @@ FEE_CONFIG: dict[str, dict[str, dict]] = {
             "scope": "line",
             "per_unit": False,
             "percent_by_category": {
-                "Electronics": "7",
                 "Home & Kitchen": "13",
-                "Sports & Outdoors": "14",
-                "Pet Supplies": "14",
                 "Beauty & Personal Care": "14",
-                "Toys & Games": "14",
-                "Office Products": "14",
-                "Tools & Home Improvement": "14",
-                "Baby": "14",
                 "Apparel & Accessories": "12",
                 "Health & Household": "14",
-                "Automotive": "14",
             },
             "fixed": "0",
             "minimum": "0",
@@ -261,5 +165,40 @@ SOURCE_FEE_TYPES: dict[str, dict[str, str]] = {
     },
     "woocommerce": {
         "gateway": "stripe_fee",
+    },
+}
+
+# rate: share of eligible order lines that refund
+# partial_share: share of refunds drawn as a partial amount
+REFUND_CONFIG: dict[str, dict[str, str]] = {
+    "Home & Kitchen": {"rate": "0.03", "partial_share": "0.35"},
+    "Beauty & Personal Care": {"rate": "0.04", "partial_share": "0.40"},
+    "Apparel & Accessories": {"rate": "0.07", "partial_share": "0.45"},
+    "Health & Household": {"rate": "0.04", "partial_share": "0.35"},
+}
+
+REFUND_REASONS: list[str] = [
+    "damaged",
+    "wrong_item",
+    "not_as_described",
+    "changed_mind",
+    "arrived_late",
+    "defective",
+]
+
+# amount_range: inclusive monthly charge in local currency, as decimal strings
+# charge_day: day of month the fee posts, always <= 28
+SERVICE_FEE_CONFIG: dict[str, dict[str, dict]] = {
+    "amazon": {
+        "storage": {
+            "source_fee_type": "StorageFee",
+            "amount_range": ("18.00", "65.00"),
+            "charge_day": 7,
+        },
+        "subscription": {
+            "source_fee_type": "Subscription",
+            "amount_range": ("39.99", "39.99"),
+            "charge_day": 1,
+        },
     },
 }
