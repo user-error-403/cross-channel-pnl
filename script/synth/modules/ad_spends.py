@@ -91,8 +91,8 @@ def generate_ad_spends(
     Expectations:
     - `clicks` never exceeds `impressions`, and `spend` is `clicks` times a CPC
       inside `ad_cpc_cents_range`.
-    - An advertised listing reports the whole `clock` window, never the days
-      before `clock.current`, because `iter_days` always spans the window.
+    - An advertised listing reports every day in the `clock` window, from
+      `start` through `end`.
 
     Returns:
     - Rows come out ordered by listing, then date.
