@@ -2,23 +2,24 @@ import random
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
-from pydantic import BaseModel
-
 from .config import Config
 from .reference import BRAND_NAMES, CATEGORIES_LIST
 
 
-class Brand(BaseModel):
+@dataclass
+class Brand:
     id: str
     name: str
 
 
-class Category(BaseModel):
+@dataclass
+class Category:
     id: str
     name: str
 
 
-class Product(BaseModel):
+@dataclass
+class Product:
     id: str
     name: str
     brand_id: str
@@ -29,10 +30,6 @@ class Product(BaseModel):
 
 @dataclass
 class Catalog:
-    """
-    Plain container for the generated reference data.
-    """
-
     brands: list[Brand]
     categories: list[Category]
     products: list[Product]
@@ -44,7 +41,20 @@ def _make_id(prefix: str, i: int) -> str:
 
 def generate_catalog(cfg: Config, rng: random.Random) -> Catalog:
     """
-    Generate brands, categories and products for the simulated catalog.
+    Build the brand, category, and product lists for one run.
+
+    Workflow:
+    - Initialize: sample up to `cfg.n_brands` names from `BRAND_NAMES`.
+    - Hydrate: copy every `CATEGORIES_LIST` key into a `Category`.
+    - Transform: derive each product from a per-product RNG seeded with
+      `cfg.seed`and the product index, then append it.
+
+    Expectations:
+    - Raising `cfg.n_products` appends products and leaves every existing `Product` untouched.
+
+    Failures:
+    - Finding: A `cfg.n_brands` above the length of `BRAND_NAMES` silently yields
+      fewer brands, because the sample is capped instead of raising.
     """
     brands = [
         Brand(id=_make_id("br", i), name=name)
@@ -70,7 +80,9 @@ def generate_catalog(cfg: Config, rng: random.Random) -> Catalog:
         item = rand_entity.choice(preset["items"])
 
         # Integer cents to stay exact: (300 - 8000)/100 -> 3.00 - 80.00 USD.
-        cost = Decimal(rand_entity.randint(300, 8000)) / 100
+        cost = (Decimal(rand_entity.randint(300, 8000)) / 100).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
 
         # Initial margin covers marketplace fees, ads, and refunds.
         # Retail price = 1.8x to 2.5x the supplier cost (80% - 150% markup).

@@ -1,5 +1,5 @@
 # personal configs
-dev.env
+.dev/
 
 # GCP service account keys
 **/*service-account*.json
@@ -16,6 +16,9 @@ airbyte/connections/**
 
 # temporary directories
 troubleshoots/
+
+# generated synthetic data
+data/
 
 # Terraform
 **/.terraform/*

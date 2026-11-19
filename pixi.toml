@@ -1,5 +1,5 @@
 [workspace]
-authors = ["Bryan Melvida <126201239+BLMelvida@users.noreply.github.com>"]
+authors = ["Bryan Melvida <bryanmelvida@gmail.com>"]
 channels = ["conda-forge"]
 name = "cross-channel-pnl"
 platforms = ["linux-64"]

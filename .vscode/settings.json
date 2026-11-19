@@ -8,4 +8,9 @@
     "files.associations": {
         ".sqlfluff": "ini"
     },
+    "python.testing.pytestArgs": [
+        "test"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
 }
