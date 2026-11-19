@@ -17,6 +17,9 @@ airbyte/connections/**
 # temporary directories
 troubleshoots/
 
+# generated synthetic data
+data/
+
 # Terraform
 **/.terraform/*
 
